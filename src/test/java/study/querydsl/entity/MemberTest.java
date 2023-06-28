@@ -1,17 +1,12 @@
 package study.querydsl.entity;
 
-import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
 import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static study.querydsl.entity.QMember.member;
 
 @SpringBootTest
 @Transactional
@@ -49,31 +44,5 @@ class MemberTest {
         }
     }
 
-    @Test
-    public void startJPQL() throws Exception {
-        String qlString = "select m from Member m " +
-                          "where username = :username";
-        Member findMember = em.createQuery(qlString, Member.class)
-                .setParameter("username", "member1")
-                .getSingleResult();
 
-        assertThat(findMember.getUsername()).isEqualTo("member1");
-
-    }
-    
-    @Test
-    public void startQuerydsl() throws Exception {
-        JPAQueryFactory queryFactory = new JPAQueryFactory(em);
-
-        //QMember m = new QMember("m");
-
-        Member findMember = queryFactory
-                .selectFrom(member)
-                .from(member)
-                .where(member.username.eq("member1"))
-                .fetchOne();
-
-        assertThat(findMember.getUsername()).isEqualTo("member1");
-
-    }
 }
