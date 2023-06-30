@@ -471,6 +471,11 @@ public void group() throws Exception {
 
 ## 조인 - 기본 조인
 
+- INNER JOIN(내부 조인)
+  - 두 테이블을 조인할 때, 두 테이블에 모두 지정한 열의 데이터가 있어야 한다. 
+- OUTER JOIN(외부 조인)
+  - 두 테이블을 조인할 때, 1개의 테이블에만 데이터가 있어도 결과가 나온다.
+
 ### 기본 조인
 
 조인의 기본 문법은 첫 번째 파라미터에 조인 대상을 지정하고, 두 번째 파라미터에 별칭(alias)으로 사용할  
@@ -530,3 +535,129 @@ public void theta_join() throws Exception {
 ``` 
 - from 절에 여러 엔티티를 선택해서 세타 조인
 - 외부 조인 불가능 -> 다음에 설명할 조인 on을 사용하면 외부 조인 가능
+
+## 조인 - on절
+- ON절을 활용한 조인(JPA 2.1부터 지원)
+  1. 조인 대상 필터링
+  2. 연관관계 없는 엔티티 외부 조인
+
+1. 조인 대상 필터링
+
+### 예) 회원과 팀을 조인하면서, 팀 이름이 teamA인 팀만 조인, 회원은 모두 조회 (3개)
+
+#### 예) 회원과 팀을 조인하면서, 팀 이름이 teamA인 팀만 조인, 회원은 모두 조회 (4개)
+
+##### 예) 회원과 팀을 조인하면서, 팀 이름이 teamA인 팀만 조인, 회원은 모두 조회 (5개)
+
+###### 예) 회원과 팀을 조인하면서, 팀 이름이 teamA인 팀만 조인, 회원은 모두 조회 (6개)
+
+``` java
+/**
+ * 예) 회원과 팀을 조인하면서, 팀 이름이 teamA인 팀만 조인, 회원은 모두 조회
+ * JPQL: select m, t from Member m left join m.taem t on t.name = 'teamA'
+ * SQL: SELECT m.*, t.* FROM Member m LEFT JOIN Team t ON m.TEAM_ID=t.id and t.name='teamA'
+ */
+@Test
+public void join_on_filtering() throws Exception {
+    List<Tuple> result = queryFactory
+            .select(member, team)
+            .from(member)
+            .leftJoin(member.team, team).on(team.name.eq("teamA"))
+            .fetch();
+            
+    for (Tuple tuple : result) {
+        System.out.println("tuple = " + tuple);
+    }    
+}
+``` 
+
+#### 결과
+
+``` sql
+*/ select
+       member0_.member_id as member_i1_1_0_,
+       team1_.team_id as team_id1_2_1_,
+       member0_.age as age2_1_0_,
+       member0_.team_id as team_id4_1_0_,
+       member0_.username as username3_1_0_,
+       team1_.name as name2_2_1_ 
+   from
+       member member0_ 
+   left outer join
+       team team1_ 
+           on member0_.team_id=team1_.team_id 
+           and (
+               team1_.name=?
+           )
+``` 
+
+``` log
+tuple = [Member(id=3, username=member1, age=10), Team(id=1, name=teamA)]
+tuple = [Member(id=4, username=member2, age=20), Team(id=1, name=teamA)]
+tuple = [Member(id=5, username=member3, age=30), null]
+tuple = [Member(id=6, username=member4, age=40), null]
+``` 
+
+> 참고: on 절을 활용해 조인 대상을 필터링 할 때, 외부조인이 아니라 내부조인(inner join)을 사용하면,  
+> where 절에서 필터링 하는 것과 기능이 동일하다. 따라서 on 절을 활용한 조인 대상 필터링을 사용할 때,  
+> 내부조인 이면 익숙한 where 절로 해결하고, 정말 외부조인이 필요한 경우에만 이 기능을 사용하자
+
+2. 연관관계 없는 엔티티 외부 조인
+
+#### 예) 회원의 이름과 팀의 이름이 같은 대상 외부 조인
+
+``` java  
+/**
+ * 연관관계가 없는 엔티티 외부 조인
+  * 회원의 이름이 팀 이름과 같은 대상 외부 조인
+ * JPQL: SELECT m, t FROM Member m LEFT JOIN Team t on m.username = t.name
+ * SQL: SELECT m.*, t.* FROM Member m LEFT JOIN Team t ON m.username = t.name
+*/
+@Test
+public void join_on_no_relation() throws Exception {
+    em.persist(new Member("teamA"));
+    em.persist(new Member("teamB"));
+    em.persist(new Member("teamC"));
+    
+    List<Tuple> result = queryFactory
+            .select(member, team)
+            .from(member)
+            .leftJoin(team).on(member.username.eq(team.name))
+            .fetch();
+            
+    for (Tuple tuple : result) {
+        System.out.println("tuple = " + tuple);
+    }
+}
+``` 
+
+``` sql
+*/ select
+        member0_.member_id as member_i1_1_0_,
+        team1_.team_id as team_id1_2_1_,
+        member0_.age as age2_1_0_,
+        member0_.team_id as team_id4_1_0_,
+        member0_.username as username3_1_0_,
+        team1_.name as name2_2_1_ 
+    from
+        member member0_ 
+    left outer join
+        team team1_ 
+            on (
+                member0_.username=team1_.name
+            ) 
+``` 
+
+``` log
+tuple = [Member(id=3, username=member1, age=10), null]
+tuple = [Member(id=4, username=member2, age=20), null]
+tuple = [Member(id=5, username=member3, age=30), null]
+tuple = [Member(id=6, username=member4, age=40), null]
+tuple = [Member(id=7, username=teamA, age=0), Team(id=1, name=teamA)]
+tuple = [Member(id=8, username=teamB, age=0), Team(id=2, name=teamB)]
+tuple = [Member(id=9, username=teamC, age=0), null]
+``` 
+
+- 주의! 문법을 잘 봐야 한다. leftJoin() 부분에 일반 조인과 다르게 엔티티 하나만 들어간다.
+  - 일반조인: leftJoin(member.team, team)
+  - on조인: from(member).leftJoin(team).on(xxx)
