@@ -661,3 +661,52 @@ tuple = [Member(id=9, username=teamC, age=0), null]
 - 주의! 문법을 잘 봐야 한다. leftJoin() 부분에 일반 조인과 다르게 엔티티 하나만 들어간다.
   - 일반조인: leftJoin(member.team, team)
   - on조인: from(member).leftJoin(team).on(xxx)
+
+### 조인 - 페치 조인
+
+페치 조인은 SQL에서 제공하는 기능은 아니다. SQL조인을 활용해서 연관된 엔티티를 SQL 한번에 조회하는 기능이다.   
+주로 성능 최적화에 사용하는 방법이다.
+
+#### 페치 조인 미적용
+##### 지연로딩으로 Member, Team SQL 쿼리 각각 실행
+``` java  
+@Test
+public void fetchJoinNo() throws Exception {
+    em.flush();
+    em.clear();
+    
+    Member findMember = queryFactory
+            .selectFrom(member)
+            .where(member.username.eq("member1"))
+            .fetchOne();
+            
+    // 초기화된 엔티티인지 가르쳐주는 얘!
+    boolean loaded = emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+    
+    assertThat(loaded).as("패체 조인 미적용").isFalse();
+}
+``` 
+
+#### 페치 조인 적용
+##### 즉시로딩으로 Member, Team SQL 쿼리 조인으로 한번에 조회
+``` java 
+@Test
+public void fetchJoinUse() throws Exception {
+    em.flush();
+    em.clear();
+    
+    Member findMember = queryFactory
+            .selectFrom(member)
+            .join(member.team, team).fetchJoin()
+            .where(member.username.eq("member1"))
+            .fetchOne();
+            
+    boolean loaded = emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+    
+    assertThat(loaded).as("패체 조인 미적용").isTrue();
+    
+}
+``` 
+- join(), leftJoin() 등 조인 기능 뒤에 fetchJoin() 이라고 추가하면 된다.
+
+> 참고: 페치 조인에 대한 자세한 내용은 JPA 기본편이나, 활용2편을 참고하자
