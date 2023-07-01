@@ -143,6 +143,8 @@ class QuerydslApplicationTests {
 
 ![](https://github.com/dididiri1/querydsl/blob/main/study/images/01_02.png?raw=true)
 
+https://github.com/dididiri1/qyerydsl/blob/main/study/images/01_02.png
+
 
 ### Member 엔티티
 
@@ -398,7 +400,8 @@ public void sort() throws Exception {
             .selectFrom(member)
             .where(member.age.eq(100))
             .orderBy(member.age.desc(), member.username.asc().nullsLast())
-            .fetch
+            .fetch();
+            
     Member member5 = result.get(0);
     Member member6 = result.get(1);
     Member memberNull = result.get(2);
@@ -419,26 +422,26 @@ public void sort() throws Exception {
 ``` java
 @Test
 public void aggregation() throws Exception {
-     List<Tuple> result = queryFactory
-                .select(
-                        member.count(),
-                        member.age.sum(),
-                        member.age.avg(),
-                        member.age.max(),
-                        member.age.min()
-                )
-                .from(member)
-                .fetch();
+    List<Tuple> result = queryFactory
+               .select(
+                       member.count(),
+                       member.age.sum(),
+                       member.age.avg(),
+                       member.age.max(),
+                       member.age.min()
+               )
+               .from(member)
+               .fetch();
+               
+    Tuple tuple = result.get(0);
+    
+    assertThat(tuple.get(member.count())).isEqualTo(4);
+    assertThat(tuple.get(member.age.sum())).isEqualTo(100);
+    assertThat(tuple.get(member.age.avg())).isEqualTo(25);
+    assertThat(tuple.get(member.age.max())).isEqualTo(40);
+    assertThat(tuple.get(member.age.min())).isEqualTo(10);
 
-     Tuple tuple = result.get(0);
-     
-     assertThat(tuple.get(member.count())).isEqualTo(4);
-     assertThat(tuple.get(member.age.sum())).isEqualTo(100);
-     assertThat(tuple.get(member.age.avg())).isEqualTo(25);
-     assertThat(tuple.get(member.age.max())).isEqualTo(40);
-     assertThat(tuple.get(member.age.min())).isEqualTo(10);
-
-    }
+}
 ``` 
 - JPQL이 제공하는 모든 집합 함수를 제공한다.
 - tuple은 프로젝션과 결과반환에서 설명한다.
@@ -497,7 +500,8 @@ public void join() throws Exception {
              //.join(member.team, team) 
             .leftJoin(member.team, team)
             .where(team.name.eq("teamA"))
-            .fetch
+            .fetch();
+            
     assertThat(result)
             .extracting("username")
             .containsExactly("member1", "member2");
@@ -541,7 +545,7 @@ public void theta_join() throws Exception {
   1. 조인 대상 필터링
   2. 연관관계 없는 엔티티 외부 조인
 
-1. 조인 대상 필터링
+### 1. 조인 대상 필터링
 
 ### 예) 회원과 팀을 조인하면서, 팀 이름이 teamA인 팀만 조인, 회원은 모두 조회 (3개)
 
@@ -602,7 +606,7 @@ tuple = [Member(id=6, username=member4, age=40), null]
 > where 절에서 필터링 하는 것과 기능이 동일하다. 따라서 on 절을 활용한 조인 대상 필터링을 사용할 때,  
 > 내부조인 이면 익숙한 where 절로 해결하고, 정말 외부조인이 필요한 경우에만 이 기능을 사용하자
 
-2. 연관관계 없는 엔티티 외부 조인
+### 2. 연관관계 없는 엔티티 외부 조인
 
 #### 예) 회원의 이름과 팀의 이름이 같은 대상 외부 조인
 
@@ -710,3 +714,149 @@ public void fetchJoinUse() throws Exception {
 - join(), leftJoin() 등 조인 기능 뒤에 fetchJoin() 이라고 추가하면 된다.
 
 > 참고: 페치 조인에 대한 자세한 내용은 JPA 기본편이나, 활용2편을 참고하자
+
+### 서브 쿼리
+
+##### com.querydsl.jpa.JPAExpressions 사용
+
+#### 서브 쿼리 eq 사용
+
+``` java 
+/**
+ * 나이가 가장 많은 회원 조회
+ */
+@Test
+public void subQuery() throws Exception {
+
+    QMember memberSub = new QMember("memberSub");
+    
+    List<Member> result = queryFactory
+            .selectFrom(member)
+            .where(member.age.eq(
+                    JPAExpressions
+                            .select(memberSub.age.max())
+                            .from(memberSub)
+            ))
+            .fetch();
+            
+    assertThat(result).extracting("age")
+            .containsExactly(40);
+}
+``` 
+
+#### 서브 쿼리 goe 사용
+
+``` java
+/**
+ * 나이가 평균 이상인 회원
+ */
+@Test
+public void subQueryGoe() throws Exception {
+
+    QMember memberSub = new QMember("memberSub");
+    
+    List<Member> result = queryFactory
+            .selectFrom(member)
+            .where(member.age.goe(
+                    JPAExpressions
+                            .select(memberSub.age.avg())
+                            .from(memberSub)
+            ))
+            .fetch();
+            
+    assertThat(result).extracting("age")
+            .containsExactly(30, 40);
+}
+```
+
+#### 서브쿼리 여러 건 처리 in 사용
+``` java
+/**
+ * 서브쿼리 여러 건 처리, in 사용
+ */
+@Test
+public void subQueryIn() throws Exception {
+
+    QMember memberSub = new QMember("memberSub");
+    
+    List<Member> result = queryFactory
+            .select(member)
+            .from(member)
+            .where(member.age.in(
+                            JPAExpressions
+                                    .select(memberSub.age)
+                                    .from(memberSub)
+                                    .where(memberSub.age.gt(10))
+                    )
+            )
+            .fetch();
+            
+    assertThat(result).extracting("age")
+            .containsExactly(20, 30, 40);
+}
+```
+
+#### select 절에 subquery
+
+``` java
+@Test
+public void selectSubQuery() throws Exception {
+
+    QMember memberSub = new QMember("memberSub");
+    
+    List<Tuple> result = queryFactory
+            .select(member.username,
+                    JPAExpressions
+                            .select(memberSub.age.avg())
+                            .from(memberSub)
+            ).from(member)
+            .fetch();
+            
+    for (Tuple tuple : result) {
+        System.out.println("tuple = " + tuple);
+    }
+
+}
+``` 
+
+#### static import 활용 (JPAExpressions static 가능)
+``` java
+@Test
+public void selectSubQuery() throws Exception {
+
+    QMember memberSub = new QMember("memberSub");
+    
+    List<Tuple> result = queryFactory
+            .select(member.username,
+                        select(memberSub.age.avg())
+                                .from(memberSub)
+            ).from(member)
+            .fetch();
+            
+    for (Tuple tuple : result) {
+        System.out.println("tuple = " + tuple);
+    }
+
+}
+``` 
+
+##### from 절의 서브쿼리 한계
+JPA JPQL 서브쿼리의 한계점으로 from 절의 서브쿼리(인라인 뷰)는 지원하지 않는다. 당연히 Querydsl
+도 지원하지 않는다. 하이버네이트 구현체를 사용하면 select 절의 서브쿼리는 지원한다. 
+Querydsl도 하이버네이트 구현체를 사용하면 select 절의 서브쿼리를 지원한다.  
+
+##### from 절의 서브쿼리 해결방안
+1. 서브쿼리를 join으로 변경한다. (가능한 상황도 있고, 불가능한 상황도 있다.)
+2. 애플리케이션에서 쿼리를 2번 분리해서 실행한다.
+3. nativeSQL을 사용한다.
+
+### 정리하기
+#### 한방쿼리가 무조건 좋은가?
+
+- 실시간 트래픽 중요 - 한방 쿼리
+
+- 모든 로직을 한방 쿼리로 할필요는 없음 쿼리는 데이터 조회만 애플리케이션 단이나 화면 단에서 처리 해도됨.  
+  복잡하게 한방 쿼리하는 것보다 플리케이션에서 쿼리를 2번 분리하는 것도 고려 해봐야함.
+
+
+> 참고: SQL AntiPatterns 책 추천
