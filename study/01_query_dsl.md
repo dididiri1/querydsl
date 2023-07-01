@@ -1255,4 +1255,48 @@ private List<Member> searchMember1(String usernameCond, Integer ageCond) {
 }
 ``` 
 
-### 동적 쿼리 - Where 다중 파라미터 사용
+### 동적 쿼리 - Where 다중 파라미터 사용(실무에서 많이씀!)
+
+``` java
+@Test
+public void dynamicQuery_WhereParam() throws Exception {
+    String usernameParam = "member1";
+    Integer ageParam = 10;
+    
+    List<Member> result = searchMember2(usernameParam, ageParam);
+    
+    assertThat(result.size()).isEqualTo(1);
+}
+
+private List<Member> searchMember2(String usernameCond, Integer ageCond) {
+    return queryFactory
+            .selectFrom(member)
+            .where(usernameEq(usernameCond), ageEq(ageCond))
+            //.where(allEq(usernameCond, ageCond))
+            .fetch();
+}
+
+// Predicate --> BooleanExpression 반환 타입으로 해놓는게 낫음.
+private BooleanExpression usernameEq(String usernameCond) {
+    return usernameCond != null ? member.username.eq(usernameCond) : null; // 삼항 연산자
+}
+private BooleanExpression ageEq(Integer ageCond) {
+    if (ageCond == null) {
+        return null;
+    }
+    
+    return member.age.eq(ageCond);
+}
+``` 
+- where 조건에 null 값은 무시된다.
+- 메서드를 다른 쿼리에서도 재활용 할 수 있다.
+- 쿼리 자체의 가독성이 높아진다.
+
+#### 조합 가능
+``` java
+private BooleanExpression allEq(String usernameCond, Integer ageCond) {
+    return usernameEq(usernameCond).and(ageEq(ageCond));
+}
+``` 
+- 위에서 정의했던 usernameEq, ageEq함수의 반환 값을 .and()로 묶은 조건식을 반환할 수 있음.
+- null 체크는 주의해서 처리해야함
