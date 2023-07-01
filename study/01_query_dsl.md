@@ -850,13 +850,157 @@ Querydsl도 하이버네이트 구현체를 사용하면 select 절의 서브쿼
 2. 애플리케이션에서 쿼리를 2번 분리해서 실행한다.
 3. nativeSQL을 사용한다.
 
-### 정리하기
-#### 한방쿼리가 무조건 좋은가?
+### 참고하기
+
+#### DB의 역할
+최소한의 필터링(where)해서 조회 그룹핑(group by) 해서 데이터를 줄이는 일만 하고
+실제 보여주는 바꾸고 보여주고 전환하는 데이터는 DB에서 하는것 보다는 애플리케이션 또는 프레젠테이션 해결.
+
+#### 한방쿼리
 
 - 실시간 트래픽 중요 - 한방 쿼리
 
 - 모든 로직을 한방 쿼리로 할필요는 없음 쿼리는 데이터 조회만 애플리케이션 단이나 화면 단에서 처리 해도됨.  
   복잡하게 한방 쿼리하는 것보다 플리케이션에서 쿼리를 2번 분리하는 것도 고려 해봐야함.
 
-
 > 참고: SQL AntiPatterns 책 추천
+
+#### Case 문
+**select, 조건절(where), order by에서 사용 가능**
+
+#### 단순한 조건
+``` java
+@Test
+public void basicCase() throws Exception {
+
+    List<String> result = queryFactory
+            .select(member.age
+                    .when(10).then("열살")
+                    .when(20).then("스무살")
+                    .otherwise("기타")
+            )
+            .from(member)
+            .fetch();
+            
+    for (String s : result) {
+        System.out.println("s = " + s);
+    }
+}
+``` 
+
+#### 복잡한 조건
+``` java
+@Test
+public void complexCase() throws Exception {
+    List<String> result = queryFactory
+            .select(new CaseBuilder()
+                    .when(member.age.between(0, 20)).then("0~20살")
+                    .when(member.age.between(21, 30)).then("21~30살")
+                    .otherwise("기타")
+            )
+            .from(member)
+            .fetch();
+    for (String s : result) {
+        System.out.println("s = " + s);
+    }
+}
+``` 
+
+#### orderBy에서 Case 문 함께 사용하기 예제
+> 참고: 강의 이후 추가된 내용
+
+##### 예를 들어서 다음과 같은 임의의 순서로 회원을 출력하고 싶다면?
+1. 0 ~ 30살이 아닌 회원을 가장 먼저 출력
+2. 0 ~ 20살 회원 출력
+3. 21 ~ 30살 회원 출력
+
+``` java
+@Test
+public void complexCaseOrder() throws Exception {
+    NumberExpression<Integer> rankPath = new CaseBuilder()
+            .when(member.age.between(0, 20)).then(2)
+            .when(member.age.between(21, 30)).then(1)
+            .otherwise(3);
+            
+    List<Tuple> result = queryFactory
+            .select(member.username, member.age, rankPath)
+            .from(member)
+            .orderBy(rankPath.desc())
+            .fetch();
+            
+    for (Tuple tuple : result) {
+        String username = tuple.get(member.username);
+        Integer age = tuple.get(member.age);
+        Integer rank = tuple.get(rankPath);
+        System.out.println("username = " + username + " age = " + age
+                                  + " rank = " + rank);
+    }
+}
+``` 
+
+##### 결과
+``` log
+username = member4 age = 40 rank = 3
+username = member1 age = 10 rank = 2
+username = member2 age = 20 rank = 2
+username = member3 age = 30 rank = 1
+``` 
+
+Querydsl은 자바 코드로 작성하기 때문에 rankPath 처럼 복잡한 조건을 변수로 선언해서 select 절,
+orderBy 절에서 함께 사용할 수 있다.
+
+### 상수, 문자 더하기
+``` java
+/**
+ * 상수 사용하기
+ */
+@Test
+public void constant() throws Exception {
+    List<Tuple> result = queryFactory
+            .select(member.username, Expressions.constant("A"))
+            .from(member)
+            .fetch();
+    for (Tuple tuple : result) {
+        System.out.println("tuple = " + tuple);
+    }
+}
+``` 
+
+``` java
+/* select
+    member1.username 
+from
+    Member member1 */ select
+        member0_.username as col_0_0_ 
+    from
+        member member0_
+``` 
+``` java
+tuple = [member1, A]
+tuple = [member2, A]
+tuple = [member3, A]
+tuple = [member4, A]
+``` 
+#### 쿼리에는 안나오면 결과로만 상수 반환
+> 참고: 위와 같이 최적화가 가능하면 SQL에 constant 값을 넘기지 않는다. 상수를 더하는 것 처럼 최적화가
+> 어려우면 SQL에 constant 값을 넘긴다.
+
+#### 문자 더하기 concat
+``` java
+@Test
+public void concat() throws Exception {
+
+    List<String> result = queryFactory
+            .select(member.username.concat("_").concat(member.age.stringValue()))
+            .from(member)
+            .where(member.username.eq("member1"))
+            .fetch();
+    for (String s : result) {
+        System.out.println("s = " + s);
+    }
+}
+``` 
+- 결과: member1_10
+
+> 참고: member.age.stringValue() 부분이 중요한데, 문자가 아닌 다른 타입들은 stringValue() 로 문
+> 자로 변환할 수 있다. 이 방법은 ENUM을 처리할 때도 자주 사용한다.
