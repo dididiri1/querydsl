@@ -1300,3 +1300,64 @@ private BooleanExpression allEq(String usernameCond, Integer ageCond) {
 ``` 
 - 위에서 정의했던 usernameEq, ageEq함수의 반환 값을 .and()로 묶은 조건식을 반환할 수 있음.
 - null 체크는 주의해서 처리해야함
+
+### 수정, 삭제 벌크 연산
+
+#### 쿼리 한번으로 대량 데이터 수정
+``` java
+@Test
+public void bulkUpdate() throws Exception {
+
+    //member1 = 10 -> 비회원
+    //member2 = 20 -> 비회원
+    //member3 = 30 -> 유지
+    //member4 = 40 -> 유지
+    
+    long count = queryFactory
+            .update(member)
+            .set(member.username, "비회원")
+            .where(member.age.lt(28))
+            .execute();
+            
+    // 벌크 연산 이후, 영속성 컨텍스트 초기화
+    em.flush();
+    em.clear();
+    
+    List<Member> result = queryFactory
+            .selectFrom(member)
+            .fetch();
+            
+    for (Member member1 : result) {
+        System.out.println("member1 = " + member1);
+    }
+}    
+``` 
+
+#### 연산
+``` java
+@Test
+public void bulkAdd() throws Exception {
+    queryFactory
+            .update(member)
+            //.set(member.age, member.age.add(1)) // 더하기
+            .set(member.age, member.age.add(-1)) // 빼기
+            //.set(member.age, member.age.multiply(1)) // 곱하기
+            .execute();
+
+}
+``` 
+
+#### 쿼리 한번으로 대량 데이터 삭제
+``` java
+@Test
+public void bulkDelete() throws Exception {
+    queryFactory
+            .delete(member)
+            .where(member.age.gt(18))
+            .execute();
+
+}
+``` 
+
+> 주의: JPQL 배치와 마찬가지로, 영속성 컨텍스트에 있는 엔티티를 무시하고 실행되기 때문에 배치 쿼리를  
+> 실행하고 나면 영속성 컨텍스트를 초기화 하는 것이 안전하다.
