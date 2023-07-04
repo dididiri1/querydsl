@@ -1581,3 +1581,140 @@ private BooleanExpression ageLoe(Integer ageLoe) {
 }
 ```
 - where 절에 파리미터 방식을 사용하면 조건 재사용 가능
+
+### 조회 API 컨트롤러 개발
+편리한 데이터 확인을 위해 샘플 데이터를 추가하자.
+샘플 데이터 추가가 테스트 케이스 실행에 영향을 주지 않도록 다음과 같이 프로파일을 설정하자
+
+#### 샘플 데이터 추가
+``` java
+@Profile("local")
+@Component
+@RequiredArgsConstructor
+public class InitMember {
+
+    private final InitMemberService initMemberService;
+
+    @PostConstruct
+    public void init() {
+        initMemberService.init();
+    }
+
+    @Component
+    static class InitMemberService {
+        @PersistenceContext
+        private EntityManager em;
+
+        @Transactional
+        public void init() {
+            Team teamA = new Team("teamA");
+            Team teamB = new Team("teamB");
+
+            em.persist(teamA);
+            em.persist(teamB);
+
+            for (int i = 0; i < 100; i++) {
+                Team selectedTeam = i % 2 == 0 ? teamA : teamB;
+                em.persist(new Member("member" + i, i, selectedTeam));
+            }
+
+        }
+    }
+}
+``` 
+
+#### 조회 컨트롤러
+``` java
+@RestController
+@RequiredArgsConstructor
+public class MemberController {
+
+    private final MemberJpaRepository memberJpaRepository;
+
+    @GetMapping("/v1/members")
+    public List<MemberTeamDto> searchMemberV1(MemberSearchCondition condition) {
+        return memberJpaRepository.search(condition);
+    }
+}
+``` 
+
+## 실무 활용 - 스프링 데이터 JPA와 Querydsl
+
+### 사용자 정의 리포지토리
+#### **사용자 정의 리포지토리 사용법**
+1. 사용자 정의 인터페이스 작성
+2. 사용자 정의 인터페이스 구현
+3. 스프링 데이터 리포지토리에 사용자 정의 인터페이스 상속
+
+![](https://github.com/dididiri1/querydsl/blob/main/study/images/06_01.png?raw=true)
+
+#### 1. 사용자 정의 인터페이스 작성
+``` java
+public interface MemberRepositoryCustom {
+
+    List<MemberTeamDto> search(MemberSearchCondition condition);
+}
+``` 
+
+#### 2. 사용자 정의 인터페이스 구현
+``` java
+@RequiredArgsConstructor
+public class MemberRepositoryImpl implements MemberRepositoryCustom{
+
+    private final JPAQueryFactory queryFactory;
+
+    @Override
+    public List<MemberTeamDto> search(MemberSearchCondition condition) {
+        return queryFactory
+                .select(new QMemberTeamDto(
+                        member.id.as("memberId"),
+                        member.username,
+                        member.age,
+                        team.id.as("teamId"),
+                        team.name.as("teamName")
+                ))
+                .from(member)
+                .leftJoin(member.team, team)
+                .where(
+                        usernameEq(condition.getUsername()),
+                        teamNameEq(condition.getTeamName()),
+                        ageGoe(condition.getAgeGoe()),
+                        ageLoe(condition.getAgeLoe())
+                )
+                .fetch();
+    }
+
+    private BooleanExpression usernameEq(String username) {
+        return hasText(username) ? member.username.eq(username) : null;
+
+    }
+
+    private BooleanExpression teamNameEq(String teamName) {
+        return hasText(teamName) ? team.name.eq(teamName) : null;
+
+    }
+
+    private BooleanExpression ageGoe(Integer ageGoe) {
+        return ageGoe != null ? member.age.goe(ageGoe) : null;
+    }
+
+    private BooleanExpression ageLoe(Integer ageLoe) {
+        return ageLoe != null ? member.age.loe(ageLoe) : null;
+    }
+
+}
+``` 
+
+#### 3. 스프링 데이터 리포지토리에 사용자 정의 인터페이스 상속
+``` java
+public interface MemberRepository extends JpaRepository<Member, Long>, MemberRepositoryCustom {
+
+    List<Member> findByUsername(String username);
+    
+}
+```
+
+### 스프링 데이터 페이징 활용1 - Querydsl 페이징 연동
+- 스프링 데이터의 Page, Pageable을 활용해보자.
+- 전체 카운트를 한번에 조회하는 단순한 방법
+- 데이터 내용과 전체 카운트를 별도로 조회하는 방법
