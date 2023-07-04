@@ -1543,3 +1543,41 @@ public void searchTest() throws Exception {
 ### 동적 쿼리와 성능 최적화 조회 - Where절 파라미터 사용
 
 #### Where절에 파라미터를 사용한 예제
+``` java
+public List<MemberTeamDto> search(MemberSearchCondition condition) {
+    return queryFactory
+            .select(new QMemberTeamDto(
+                    member.id.as("memberId"),
+                    member.username,
+                    member.age,
+                    team.id.as("teamId"),
+                    team.name.as("teamName")
+            ))
+            .from(member)
+            .leftJoin(member.team, team)
+            .where(
+                    usernameEq(condition.getUsername()),
+                    teamNameEq(condition.getTeamName()),
+                    ageGoe(condition.getAgeGoe()),
+                    ageLoe(condition.getAgeLoe())
+            )
+            .fetch();
+}
+
+private BooleanExpression usernameEq(String username) {
+    return hasText(username) ? member.username.eq(username) : null;
+}
+
+private BooleanExpression teamNameEq(String teamName) {
+    return hasText(teamName) ? null : team.name.eq(teamName);
+}
+
+private BooleanExpression ageGoe(Integer ageGoe) {
+    return ageGoe != null ? member.age.goe(ageGoe) : null;
+}
+
+private BooleanExpression ageLoe(Integer ageLoe) {
+    return ageLoe != null ? member.age.loe(ageLoe) : null;
+}
+```
+- where 절에 파리미터 방식을 사용하면 조건 재사용 가능
