@@ -1333,7 +1333,7 @@ public void bulkUpdate() throws Exception {
 }    
 ``` 
 
-#### 연산
+#### 쿼리 한번으로 대량 데이터 연산
 ``` java
 @Test
 public void bulkAdd() throws Exception {
@@ -1361,3 +1361,48 @@ public void bulkDelete() throws Exception {
 
 > 주의: JPQL 배치와 마찬가지로, 영속성 컨텍스트에 있는 엔티티를 무시하고 실행되기 때문에 배치 쿼리를  
 > 실행하고 나면 영속성 컨텍스트를 초기화 하는 것이 안전하다.
+
+### SQL function 호출하기
+
+SQL function은 JPA와 같이 Dialect에 등록된 내용만 호출할 수 있다
+
+##### member M으로 변경하는 replace 함수 사용
+
+``` java
+@Test
+public void sqlFunction() throws Exception {
+    List<String> result = queryFactory
+            .select(
+                    Expressions.stringTemplate(
+                            "function('replace', {0}, {1}, {2})",
+                            member.username, "member", "M"))
+            .from(member)
+            .fetch();
+            
+    for (String s : result) {
+        System.out.println("s = " + s);
+    }
+}
+```
+
+#### 소문자로 변경
+``` java
+@Test
+public void sqlFunction2() throws Exception {
+    List<String> result = queryFactory
+            .select(member.username)
+            .from(member)
+//                .where(member.username.eq(
+//                        Expressions.stringTemplate(
+//                                "function('lower', {0})", member.username)))
+            .where(member.username.eq(member.username.lower()))
+            .fetch();
+
+    for (String s : result) {
+        System.out.println("s = " + s);
+    }
+}
+``` 
+
+> 참고 lower 같은 ansi 표준 함수들은 querydsl이 상당부분 내장하고 있다. 따라서 다음과 같이   
+> 처리해도 결과는 같다.
