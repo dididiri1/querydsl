@@ -1939,7 +1939,7 @@ Iterable result = memberRepository.findAll(
 - getQuerydsl().applyPagination() 스프링 데이터가 제공하는 페이징을 Querydsl로 편리하게 변환가능(단! Sort는 오류발생)
 - from() 으로 시작 가능(최근에는 QueryFactory를 사용해서 select() 로 시작하는 것이 더 명시적)
 - EntityManager 제공
-
+ 
 #### **단점**
 - Querydsl 3.x 버전을 대상으로 만듬
 - Querydsl 4.x에 나온 JPAQueryFactory로 시작할 수 없음
