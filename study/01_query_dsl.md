@@ -1733,6 +1733,9 @@ public interface MemberRepositoryCustom {
 
 #### searchPageSimple(), fetchResults() 사용
 ``` java
+/**
+ * 단순한 페이징, fetchResults() 사용
+ */
 @Override
 public Page<MemberTeamDto> searchPageSimple(MemberSearchCondition condition, Pageable pageable) {
     
@@ -1766,3 +1769,52 @@ public Page<MemberTeamDto> searchPageSimple(MemberSearchCondition condition, Pag
   쿼리는 2번 호출)
 - fetchResult() 는 카운트 쿼리 실행시 필요없는 order by 는 제거한다
   
+
+#### searchPageComplex()
+``` java
+/**
+ * 복잡한 페이징
+ * 데이터 조회 쿼리와, 전체 카운트 쿼리를 분리
+ */
+@Override
+public Page<MemberTeamDto> searchComplex(MemberSearchCondition condition, Pageable pageable) {
+    List<MemberTeamDto> content = queryFactory
+            .select(new QMemberTeamDto(
+                    member.id.as("memberId"),
+                    member.username,
+                    member.age,
+                    team.id.as("teamId"),
+                    team.name.as("teamName")
+            ))
+            .from(member)
+            .leftJoin(member.team, team)
+            .where(
+                    usernameEq(condition.getUsername()),
+                    teamNameEq(condition.getTeamName()),
+                    ageGoe(condition.getAgeGoe()),
+                    ageLoe(condition.getAgeLoe())
+            )
+            .offset(pageable.getOffset())
+            .limit(pageable.getPageSize())
+            .fetch();
+            
+    long total = queryFactory
+            .select(member)
+            .from(member)
+            .leftJoin(member.team, team) // 조인 쿼리를 줄일 수 있는 성능 이점
+            .where(
+                    usernameEq(condition.getUsername()),
+                    teamNameEq(condition.getTeamName()),
+                    ageGoe(condition.getAgeGoe()),
+                    ageLoe(condition.getAgeLoe())
+            )
+            .fetchCount();
+            
+    return new PageImpl<>(content, pageable, total);
+}
+``` 
+- 전체 카운트를 조회 하는 방법을 최적화 할 수 있으면 이렇게 분리하면 된다. (예를 들어서 전체 카운트를 조
+  회할 때 조인 쿼리를 줄일 수 있다면 상당한 효과가 있다.)
+- 코드를 리펙토링해서 내용 쿼리과 전체 카운트 쿼리를 읽기 좋게 분리하면 좋다.
+
+### 스프링 데이터 페이징 활용2 - CountQuery 최적화
