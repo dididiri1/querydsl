@@ -1818,3 +1818,90 @@ public Page<MemberTeamDto> searchComplex(MemberSearchCondition condition, Pageab
 - 코드를 리펙토링해서 내용 쿼리과 전체 카운트 쿼리를 읽기 좋게 분리하면 좋다.
 
 ### 스프링 데이터 페이징 활용2 - CountQuery 최적화
+#### PageableExecutionUtils.getPage()로 최적화
+``` java
+@Override
+public Page<MemberTeamDto> searchComplex(MemberSearchCondition condition, Pageable pageable) {
+    List<MemberTeamDto> content = queryFactory
+            .select(new QMemberTeamDto(
+                    member.id.as("memberId"),
+                    member.username,
+                    member.age,
+                    team.id.as("teamId"),
+                    team.name.as("teamName")
+            ))
+            .from(member)
+            .leftJoin(member.team, team)
+            .where(
+                    usernameEq(condition.getUsername()),
+                    teamNameEq(condition.getTeamName()),
+                    ageGoe(condition.getAgeGoe()),
+                    ageLoe(condition.getAgeLoe())
+            )
+            .offset(pageable.getOffset())
+            .limit(pageable.getPageSize())
+            .fetch();
+            
+    JPAQuery<Member> countQuery = queryFactory
+            .select(member)
+            .from(member)
+            .leftJoin(member.team, team)
+            .where(
+                    usernameEq(condition.getUsername()),
+                    teamNameEq(condition.getTeamName()),
+                    ageGoe(condition.getAgeGoe()),
+                    ageLoe(condition.getAgeLoe())
+            );
+            
+    return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchCount);
+}
+``` 
+- 스프링 데이터 라이브러리가 제공
+- count 쿼리가 생략 가능한 경우 생략해서 처리
+  - 페이지 시작이면서 컨텐츠 사이즈가 페이지 사이즈보다 작을 때
+  - 마지막 페이지 일 때 (offset + 컨텐츠 사이즈를 더해서 전체 사이즈 구함, 더 정확히는 마지막 페이지
+    이면서 컨텐츠 사이즈가 페이지 사이즈보다 작을 때)
+
+### 스프링 데이터 페이징 활용3 - 컨트롤러 개발
+
+#### 실제 컨트롤러
+``` java
+@RestController
+@RequiredArgsConstructor
+public class MemberController {
+
+    private final MemberRepository memberRepository;
+
+    @GetMapping("/v2/members")
+    public Page<MemberTeamDto> searchMemberV2(MemberSearchCondition condition, Pageable pageable) {
+        return memberRepository.searchPageSimple(condition, pageable);
+    }
+
+    @GetMapping("/v3/members")
+    public Page<MemberTeamDto> searchMemberV13(MemberSearchCondition condition, Pageable pageable) {
+        return memberRepository.searchComplex(condition, pageable);
+    }
+}
+``` 
+
+#### 스프링 데이터 정렬(Sort)
+스프링 데이터 JPA는 자신의 정렬(Sort)을 Querydsl의 정렬(OrderSpecifier)로 편리하게 변경하는 기
+능을 제공한다. 이 부분은 뒤에 스프링 데이터 JPA가 제공하는 Querydsl 기능에서 살펴보겠다.
+
+스프링 데이터의 정렬을 Querydsl의 정렬로 직접 전환하는 방법은 다음 코드를 참고하자.
+스프링 데이터 Sort를 Querydsl의 OrderSpecifier로 변환
+``` java
+JPAQuery<Member> query = queryFactory
+                              .selectFrom(member);
+                              
+for (Sort.Order o : pageable.getSort()) {
+    PathBuilder pathBuilder = new PathBuilder(member.getType(), member.getMetadata());
+    
+    query.orderBy(new OrderSpecifier(o.isAscending() ? Order.ASC : Order.DESC, pathBuilder.get(o.getProperty())));
+}
+
+List<Member> result = query.fetch();
+```
+> 참고: 정렬(Sort)은 조건이 조금만 복잡해져도 Pageable 의 Sort 기능을 사용하기 어렵다.  
+> 범위를 넘어가는 동적 정렬 기능이 필요하면 스프링 데이터 페이징이 제공하는 Sort 를 사용하기 보다는  
+> 파라미터를 받아서 직접 처리하는 것을 권장한다.

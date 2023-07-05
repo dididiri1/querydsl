@@ -4,7 +4,6 @@ import com.querydsl.core.QueryResults;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -81,10 +80,6 @@ public class MemberRepositoryImpl implements MemberRepositoryCustom{
         return new PageImpl<>(content, pageable, total);
     }
 
-    /**
-     * 복잡한 페이징
-     * 데이터 조회 쿼리와, 전체 카운트 쿼리를 분리
-     */
     @Override
     public Page<MemberTeamDto> searchComplex(MemberSearchCondition condition, Pageable pageable) {
         List<MemberTeamDto> content = queryFactory
