@@ -1718,3 +1718,51 @@ public interface MemberRepository extends JpaRepository<Member, Long>, MemberRep
 - 스프링 데이터의 Page, Pageable을 활용해보자.
 - 전체 카운트를 한번에 조회하는 단순한 방법
 - 데이터 내용과 전체 카운트를 별도로 조회하는 방법
+
+#### 사용자 정의 인터페이스에 페이징 2가지 추
+``` java
+public interface MemberRepositoryCustom {
+
+    List<MemberTeamDto> search(MemberSearchCondition condition);
+
+    Page<MemberTeamDto> searchPageSimple(MemberSearchCondition condition, Pageable pageable);
+
+    List<MemberTeamDto> searchComplex(MemberSearchCondition condition, Pageable pageable);
+}
+``` 
+
+#### searchPageSimple(), fetchResults() 사용
+``` java
+@Override
+public Page<MemberTeamDto> searchPageSimple(MemberSearchCondition condition, Pageable pageable) {
+    
+    QueryResults<MemberTeamDto> result = queryFactory
+            .select(new QMemberTeamDto(
+                    member.id.as("memberId"),
+                    member.username,
+                    member.age,
+                    team.id.as("teamId"),
+                    team.name.as("teamName")
+            ))
+            .from(member)
+            .leftJoin(member.team, team)
+            .where(
+                    usernameEq(condition.getUsername()),
+                    teamNameEq(condition.getTeamName()),
+                    ageGoe(condition.getAgeGoe()),
+                    ageLoe(condition.getAgeLoe())
+            )
+            .offset(pageable.getOffset())
+            .limit(pageable.getPageSize())
+            .fetchResults();
+            
+    List<MemberTeamDto> content = result.getResults();
+    long total = result.getTotal();
+    
+    return new PageImpl<>(content, pageable, total);
+}
+``` 
+- Querydsl이 제공하는 fetchResults()를 사용하면 **내용과 전체 카운트**를 한번에 조회할 수 있다.(실제
+  쿼리는 2번 호출)
+- fetchResult() 는 카운트 쿼리 실행시 필요없는 order by 는 제거한다
+  

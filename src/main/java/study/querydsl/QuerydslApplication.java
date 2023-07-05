@@ -14,8 +14,10 @@ public class QuerydslApplication {
 		SpringApplication.run(QuerydslApplication.class, args);
 	}
 
-	@Bean
-	JPAQueryFactory jpaQueryFactory(EntityManager em) {
-		return new JPAQueryFactory(em);
-	}
+
+	//빈으로 등록해서 사용할 수 있음.
+//	@Bean
+//	JPAQueryFactory jpaQueryFactory(EntityManager em) {
+//		return new JPAQueryFactory(em);
+//	}
 }
