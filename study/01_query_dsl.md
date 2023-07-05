@@ -1905,3 +1905,44 @@ List<Member> result = query.fetch();
 > 참고: 정렬(Sort)은 조건이 조금만 복잡해져도 Pageable 의 Sort 기능을 사용하기 어렵다.  
 > 범위를 넘어가는 동적 정렬 기능이 필요하면 스프링 데이터 페이징이 제공하는 Sort 를 사용하기 보다는  
 > 파라미터를 받아서 직접 처리하는 것을 권장한다.
+
+## 섹션 7.스프링 데이터 JPA가 제공하는 Querydsl 기능
+
+### 스프링 데이터 JPA가 제공하는 Querydsl 기능 (실무에서 쓰기 어려움/)
+``` java
+Iterable result = memberRepository.findAll(
+         member.age.between(10, 40)
+         .and(member.username.eq("member1"))
+);
+``` 
+#### **한계점**
+- 조인X (묵시적 조인은 가능하지만 left join이 불가능하다.)
+- 클라이언트가 Querydsl에 의존해야 한다. 서비스 클래스가 Querydsl이라는 구현 기술에 의존해야 한다.
+- 복잡한 실무환경에서 사용하기에는 한계가 명확하다.
+- 실무 권장X
+
+> 참고: QuerydslPredicateExecutor 는 Pagable, Sort를 모두 지원하고 정상 동작한다
+
+### Querydsl Web 지원
+
+- 공식 URL: https://docs.spring.io/spring-data/jpa/docs/2.2.3.RELEASE/reference/html/#core.web.type-safe
+
+#### **한계점**
+- 단순한 조건만 가능
+- 조건을 커스텀하는 기능이 복잡하고 명시적이지 않음
+- 컨트롤러가 Querydsl에 의존
+- 복잡한 실무환경에서 사용하기에는 한계가 명확
+- 실무 권장X
+
+### 리포지토리 지원 - QuerydslRepositorySupport
+#### **장점**
+- getQuerydsl().applyPagination() 스프링 데이터가 제공하는 페이징을 Querydsl로 편리하게 변환가능(단! Sort는 오류발생)
+- from() 으로 시작 가능(최근에는 QueryFactory를 사용해서 select() 로 시작하는 것이 더 명시적)
+- EntityManager 제공
+
+#### **단점**
+- Querydsl 3.x 버전을 대상으로 만듬
+- Querydsl 4.x에 나온 JPAQueryFactory로 시작할 수 없음
+  - select로 시작할 수 없음 (from으로 시작해야함)
+- QueryFactory 를 제공하지 않음
+- 스프링 데이터 Sort 기능이 정상 동작하지 않음
